@@ -301,34 +301,34 @@ func (ms *Server) recordStats(req *request) {
 // goroutine.
 //
 // Each filesystem operation executes in a separate goroutine.
-func (ms *Server) Serve() {
+func (ms *Server) Serve() Status {
 	ms.loops.Add(1)
-	ms.loop(false)
+	status := ms.loop(false)
 	ms.loops.Wait()
 
 	ms.writeMu.Lock()
 	syscall.Close(ms.mountFd)
 	ms.writeMu.Unlock()
+	return status
 }
 
-func (ms *Server) loop(exitIdle bool) {
+func (ms *Server) loop(exitIdle bool) Status {
 	defer ms.loops.Done()
-exit:
 	for {
 		req, errNo := ms.readRequest(exitIdle)
 		switch errNo {
 		case OK:
 			if req == nil {
-				break exit
+				return OK
 			}
 		case ENOENT:
 			continue
 		case ENODEV:
 			// unmount
-			break exit
+			return ENODEV
 		default: // some other error?
 			log.Printf("Failed to read from fuse conn: %v", errNo)
-			break exit
+			return errNo
 		}
 
 		if ms.singleReader {
